@@ -238,6 +238,7 @@ nypd_prec %>%
 long_lat_df %>% 
   leaflet() %>% 
   addTiles() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
   addPolygons(data = nypd_prec,
               label = ~label,
               color = "#000000",
