@@ -171,18 +171,20 @@ long_lat_df <- data.frame(longitude = coordinates(long_lat_df)[,1], latitude = c
 long_lat_df %>% 
   leaflet() %>% 
   addTiles() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
   addCircleMarkers(
     ~longitude, ~latitude,
-    radius = 2,
+    radius = 1,
     opacity = 0.6)
 
 # Locations of Stops with Precincts Outlines
 long_lat_df %>% 
   leaflet() %>% 
   addTiles() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
   addCircleMarkers(
     ~longitude, ~latitude,
-    radius = 2,
+    radius = 1,
     opacity = 0.6) %>% 
   addPolygons(data = nypd_prec,
               color = "#000000",
@@ -203,13 +205,17 @@ nypd_prec  =
 
 pal <- colorNumeric("YlOrRd", domain = range(frisks_by_prec$totalfrisks))
 
+nypd_prec =
 nypd_prec %>% 
   mutate(
     tfc = pal(totalfrisks),
     label = str_c("Precinct: ", precinct, "<br/>", "Total Stops in 2016: ", totalfrisks) %>% map(htmltools::HTML)
-  ) %>% 
+  )
+
+nypd_prec %>% 
   leaflet() %>% 
-  addTiles() %>% 
+  addTiles() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>% 
   addPolygons(label = ~label,
               color = "#000000",
               fillColor = ~tfc,
@@ -226,4 +232,37 @@ nypd_prec %>%
             position = "bottomright")
 ```
 
+
+# Combining to Try Layering Functioning (but this can be accomplished with Shiny as well)
+```{r}
+long_lat_df %>% 
+  leaflet() %>% 
+  addTiles() %>% 
+  addPolygons(data = nypd_prec,
+              label = ~label,
+              color = "#000000",
+              fillColor = ~tfc,
+              weight = 1,
+              smoothFactor = 0.5,
+              opacity = 1,
+              fillOpacity = 0.8,
+              group = "Police Precincts"
+  ) %>% 
+  addLegend(data = nypd_prec,
+            pal = pal,
+            values = ~totalfrisks,
+            title = NULL,
+            position = "bottomright",
+            group = "Police Precincts"
+  ) %>% 
+  addCircleMarkers(
+    ~longitude, ~latitude,
+    radius = 1,
+    opacity = 0.6,
+    group = "Individual Stops") %>% 
+  addLayersControl(
+    overlayGroups = c("Individual Stops", "Police Precincts"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+```
 
