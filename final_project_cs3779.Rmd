@@ -14,6 +14,8 @@ library(lubridate)
 library(plotly)
 library(rgdal)
 library(sp)
+library(sf)
+library(leaflet)
 
 knitr::opts_chunk$set(
 	echo = TRUE,
@@ -131,4 +133,97 @@ stop_frisk_df =
   # converts all character variables to factors (this does the same as the for loop)
   mutate_if(is.character, as.factor)
 ```
+
+
+## Converting X Y Coordinates
+```{r}
+test_df= 
+  stop_frisk_df %>% 
+  select(xcoord, ycoord) %>% 
+  drop_na()
+
+coordinates(test_df) <- c("xcoord","ycoord")
+proj4string(test_df) <- CRS("+init=epsg:2263")
+CRS.new <- CRS("+init=epsg:4326") 
+test_df_new <- spTransform(test_df, CRS.new)
+test_df_new <- data.frame(longitude = coordinates(test_df_new)[,1], latitude = coordinates(test_df_new)[,2])
+```
+
+# Simplifying code
+```{r}
+nypd_prec = 
+  st_read("./data/nypp/geo_export_55605c77-3922-4b7a-bd65-18d11225a91f.shp")
+
+long_lat_df =
+  stop_frisk_df %>% 
+  select(xcoord, ycoord) %>% 
+  drop_na()
+
+coordinates(long_lat_df) <- c("xcoord", "ycoord")
+proj4string(long_lat_df) <- CRS("+init=epsg:2263")
+long_lat_df <- spTransform(long_lat_df, CRS("+init=epsg:4326"))
+long_lat_df <- data.frame(longitude = coordinates(long_lat_df)[,1], latitude = coordinates(long_lat_df)[,2])
+```
+
+# Creating Maps
+```{r, warning=FALSE}
+# Locations of Stops
+long_lat_df %>% 
+  leaflet() %>% 
+  addTiles() %>% 
+  addCircleMarkers(
+    ~longitude, ~latitude,
+    radius = 2,
+    opacity = 0.6)
+
+# Locations of Stops with Precincts Outlines
+long_lat_df %>% 
+  leaflet() %>% 
+  addTiles() %>% 
+  addCircleMarkers(
+    ~longitude, ~latitude,
+    radius = 2,
+    opacity = 0.6) %>% 
+  addPolygons(data = nypd_prec,
+              color = "#000000",
+              fillColor = "#FFFFFF",
+              weight = 1,
+              smoothFactor = 0.5,
+              opacity = 1,
+              fillOpacity = 0.1)
+
+# Colored Area based on Number of Stops
+frisks_by_prec = 
+  stop_frisk_df %>% 
+  group_by(precinct) %>% 
+  summarize(totalfrisks = n())
+
+nypd_prec  = 
+  inner_join(nypd_prec, frisks_by_prec, by="precinct")
+
+pal <- colorNumeric("YlOrRd", domain = range(frisks_by_prec$totalfrisks))
+
+nypd_prec %>% 
+  mutate(
+    tfc = pal(totalfrisks),
+    label = str_c("Precinct: ", precinct, "<br/>", "Total Stops in 2016: ", totalfrisks) %>% map(htmltools::HTML)
+  ) %>% 
+  leaflet() %>% 
+  addTiles() %>% 
+  addPolygons(label = ~label,
+              color = "#000000",
+              fillColor = ~tfc,
+              weight = 1,
+              smoothFactor = 0.5,
+              opacity = 1,
+              fillOpacity = 0.8,
+              highlightOptions = highlightOptions(color = "white",
+                                                  weight = 2,
+                                                  bringToFront = TRUE)) %>% 
+  addLegend(pal = pal,
+            values = ~totalfrisks,
+            title = NULL,
+            position = "bottomright")
+```
+
 
