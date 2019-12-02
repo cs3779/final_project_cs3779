@@ -163,29 +163,40 @@ coordinates(long_lat_df) <- c("xcoord", "ycoord")
 proj4string(long_lat_df) <- CRS("+init=epsg:2263")
 long_lat_df <- spTransform(long_lat_df, CRS("+init=epsg:4326"))
 long_lat_df <- data.frame(longitude = coordinates(long_lat_df)[,1], latitude = coordinates(long_lat_df)[,2])
+
+stop_frisk_map_df = 
+  stop_frisk_df %>% 
+  drop_na(xcoord) %>% 
+  bind_cols(long_lat_df) %>% 
+  select(-xcoord, -ycoord) %>% 
+  mutate(
+    label = str_c("Gender: ", sex, "<br/>", "Race: ", race) %>% map(htmltools::HTML)
+  )
 ```
 
 # Creating Maps
 ```{r, warning=FALSE}
 # Locations of Stops
-long_lat_df %>% 
+stop_frisk_map_df %>% 
   leaflet() %>% 
   addTiles() %>% 
   addProviderTiles(providers$CartoDB.Positron) %>% 
   addCircleMarkers(
     ~longitude, ~latitude,
     radius = 1,
-    opacity = 0.6)
+    opacity = 0.6,
+    label = ~label)
 
 # Locations of Stops with Precincts Outlines
-long_lat_df %>% 
+stop_frisk_map_df %>% 
   leaflet() %>% 
   addTiles() %>% 
   addProviderTiles(providers$CartoDB.Positron) %>% 
   addCircleMarkers(
     ~longitude, ~latitude,
     radius = 1,
-    opacity = 0.6) %>% 
+    opacity = 0.6,
+    label = ~label) %>% 
   addPolygons(data = nypd_prec,
               color = "#000000",
               fillColor = "#FFFFFF",
@@ -194,22 +205,31 @@ long_lat_df %>%
               opacity = 1,
               fillOpacity = 0.1)
 
-# Colored Area based on Number of Stops
+# Colored Area based on Number of Stops with Information on # of Frisks by Precinct
+stops_by_prec = 
+  stop_frisk_df %>% 
+  group_by(precinct) %>% 
+  summarize(totalstops = n())
+
 frisks_by_prec = 
   stop_frisk_df %>% 
   group_by(precinct) %>% 
+  filter(frisked==1) %>% 
   summarize(totalfrisks = n())
 
 nypd_prec  = 
-  inner_join(nypd_prec, frisks_by_prec, by="precinct")
+  inner_join(nypd_prec, stops_by_prec, by="precinct") %>% 
+  inner_join(., frisks_by_prec, by="precinct")
 
-pal <- colorNumeric("YlOrRd", domain = range(frisks_by_prec$totalfrisks))
+pal <- colorNumeric("YlOrRd", domain = range(nypd_prec$totalstops))
+pal2 <- colorNumeric("YlOrRd", domain = range(nypd_prec$totalfrisks))
 
 nypd_prec =
 nypd_prec %>% 
   mutate(
-    tfc = pal(totalfrisks),
-    label = str_c("Precinct: ", precinct, "<br/>", "Total Stops in 2016: ", totalfrisks) %>% map(htmltools::HTML)
+    tsc = pal(totalstops),
+    tfc = pal2(totalfrisks),
+    label = str_c("Precinct: ", precinct, "<br/>", "Total Stops in 2016: ", totalstops, "<br/>", "Total Frisks in 2016: ", totalfrisks) %>% map(htmltools::HTML)
   )
 
 nypd_prec %>% 
@@ -218,7 +238,7 @@ nypd_prec %>%
   addProviderTiles(providers$CartoDB.Positron) %>% 
   addPolygons(label = ~label,
               color = "#000000",
-              fillColor = ~tfc,
+              fillColor = ~tsc,
               weight = 1,
               smoothFactor = 0.5,
               opacity = 1,
@@ -227,7 +247,7 @@ nypd_prec %>%
                                                   weight = 2,
                                                   bringToFront = TRUE)) %>% 
   addLegend(pal = pal,
-            values = ~totalfrisks,
+            values = ~totalstops,
             title = NULL,
             position = "bottomright")
 ```
@@ -235,7 +255,7 @@ nypd_prec %>%
 
 # Combining to Try Layering Functioning (but this can be accomplished with Shiny as well)
 ```{r}
-long_lat_df %>% 
+stop_frisk_map_df %>% 
   leaflet() %>% 
   addTiles() %>% 
   addProviderTiles(providers$CartoDB.Positron) %>% 
@@ -251,7 +271,7 @@ long_lat_df %>%
   ) %>% 
   addLegend(data = nypd_prec,
             pal = pal,
-            values = ~totalfrisks,
+            values = ~totalstops,
             title = NULL,
             position = "bottomright",
             group = "Police Precincts"
