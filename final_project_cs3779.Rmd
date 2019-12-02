@@ -149,7 +149,9 @@ test_df_new <- spTransform(test_df, CRS.new)
 test_df_new <- data.frame(longitude = coordinates(test_df_new)[,1], latitude = coordinates(test_df_new)[,2])
 ```
 
-# Simplifying code
+
+
+# Adding Precinct Data & Converting X/Y Coords
 ```{r}
 nypd_prec = 
   st_read("./data/nypp/geo_export_55605c77-3922-4b7a-bd65-18d11225a91f.shp")
